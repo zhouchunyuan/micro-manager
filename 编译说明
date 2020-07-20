@@ -1,0 +1,6 @@
+通过 micromanager.sln 编译 DemoCamera
+1) open micromanager.sln with MS Studio 2019
+2) right click "DemoCamera" project, in project properties, change  configuration to "Release", platform to "x64"
+3) Change "DemoCamera" project toolkit from "Windows7.1SDK" to "Visual Studio 2019(v142)"
+4) right click "MMDevice-SharedRuntime" project, do similar change as step 2)-3)
+5) from output dialog,find the message: DemoCamera.vcxproj -> C:\Users\f3412\Documents\Visual Studio 2019\project\micromanager2\micro-manager-master\build\Release\x64\mmgr_dal_DemoCamera.dll
