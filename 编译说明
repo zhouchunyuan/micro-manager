@@ -4,3 +4,13 @@
 3) Change "DemoCamera" project toolkit from "Windows7.1SDK" to "Visual Studio 2019(v142)"
 4) right click "MMDevice-SharedRuntime" project, do similar change as step 2)-3)
 5) from output dialog,find the message: DemoCamera.vcxproj -> C:\Users\f3412\Documents\Visual Studio 2019\project\micromanager2\micro-manager-master\build\Release\x64\mmgr_dal_DemoCamera.dll
+
+通过MMCamera.vcxproj,编译MMCamera
+1) svn clone the <3rdpartypublic>(option) and <source code> to same folder
+2) refer to the instruction of https://micro-manager.org/wiki/Visual_Studio_project_settings_for_device_adapters, method 2, open VS2019
+3) go to C:\Users\z\Documents\Visual Studio 2019\MM\micro-manager-master\TestDeviceAdapters\MMCamera, open "MMCamera.vcxproj" by VS2019
+4）在生成的项目上，更改“解决方案配置”为“Release”, "解决方案平台"为“x64”
+5）在MMCamera项目上点右键，打开属性页，改平台工具集“windows7.1SDK（未安装）”为当前版本“Visual Studio 2019(v142)”
+6）在"解决方案'MMCamera'"上点右键，选“添加”-“现有项目”- “MMDevice\MMDevice-SharedRuntime.vcxproj”
+7）在MMDevice-SharedRuntime项目上点右键，打开属性页，改平台工具集“windows7.1SDK（未安装）”为当前版本“Visual Studio 2019(v142)”
+8) 编译的结果在 \TestDeviceAdapters\MMCamera\build\Release\x64
