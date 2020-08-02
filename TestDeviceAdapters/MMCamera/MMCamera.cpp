@@ -433,6 +433,7 @@ int MMCamera::StartSequenceAcquisition(long numImages, double interval_ms, bool 
    if (ret != DEVICE_OK)
       return ret;
 
+   thd_->Start(numImages, interval_ms);
    return DEVICE_OK;
 }
 
@@ -448,7 +449,26 @@ int MMCamera::InsertImage()
  
    // Important:  metadata about the image are generated here:
    Metadata md;
+   const unsigned char* pI;
+   pI = GetImageBuffer();
 
+   unsigned int w = GetImageWidth();
+   unsigned int h = GetImageHeight();
+   unsigned int b = GetImageBytesPerPixel();
+
+   int ret = GetCoreCallback()->InsertImage(this, pI, w, h, b, 1, md.Serialize().c_str());
+   
+   if (ret == DEVICE_BUFFER_OVERFLOW)
+   {
+       // do not stop on overflow - just reset the buffer
+       GetCoreCallback()->ClearImageBuffer(this);
+       // don't process this same image again...
+       return GetCoreCallback()->InsertImage(this, pI, w, h, b, 1, md.Serialize().c_str(), false);
+   }
+   else
+   {
+       return ret;
+   }
    return DEVICE_OK;
 }
 

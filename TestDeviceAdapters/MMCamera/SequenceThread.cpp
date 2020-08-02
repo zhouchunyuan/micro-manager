@@ -56,5 +56,21 @@ bool SequenceThread::IsStopped(){
 int SequenceThread::svc(void) throw()
 {
    int ret=DEVICE_ERR;
+   try
+   {
+       do
+       {
+           camera_->GenerateImage();
+           ret = camera_->InsertImage();
+           if (ret != DEVICE_OK)break;
+
+       } while (!IsStopped() && imageCounter_++ < numImages_ - 1);
+       if (IsStopped())
+           camera_->LogMessage("SeqAcquisition interrupted by the user\n");
+   }
+   catch (...) {
+       camera_->LogMessage(g_Msg_EXCEPTION_IN_THREAD, false);
+   }
+   stop_ = true;
    return ret;
 }
