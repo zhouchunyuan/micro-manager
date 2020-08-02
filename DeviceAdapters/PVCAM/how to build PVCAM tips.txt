@@ -8,3 +8,19 @@
 6) change solution configuration and platform to Release x64
 7) change platform toolset to be VS2019 14.2
 8) add #include <algorithm> to PvRoiCollection.cpp
+
+old tips:
+1) svn clone the <3rdpartypublic> and <source code> to same folder
+2) refer to the instruction of https://micro-manager.org/wiki/Visual_Studio_project_settings_for_device_adapters, method 2, open VS2019
+3) go to C:\Users\z\Documents\Visual Studio 2019\MM\micro-manager-master\DeviceAdapters\PVCAM, open "PVCAM.vcxproj" by VS2019
+4）在生成的项目上，更改“解决方案配置”为“Release”, "解决方案平台"为“x64”
+5）在PVCAM项目上点右键，打开属性页，改平台工具集“windows7.1SDK（未安装）”为当前版本“Visual Studio 2019(v142)”
+6）确认MMDevice-SharedRuntime项目也为当前版本“Visual Studio 2019(v142)”
+7）在PvRoiCollection.cpp 中加入 #include <algorithm>
+8）安装boost_1_73_0到 《boost-versions》下
+9)  参考https://www.pc-gear.com/post/boost-vs2019/，
+	执行：.\b2 toolset=msvc-14.2 threading=multi variant=debug,release link=static runtime-link=static,shared address-model=64 -j6 --libdir="C:\Users\z\Documents\Visual Studio 2019\MM\3rdpartypublic\boost-versions\boost_1_73_0\lib\x64" --build-type=complete stage install
+
+10）更改 \buildscripts\VisualStudio\MMCommon.props
+    <MM_BOOST_INCLUDEDIR>$(MM_3RDPARTYPUBLIC)\boost-versions\boost_1_73_0\</MM_BOOST_INCLUDEDIR>
+    <MM_BOOST_LIBDIR>$(MM_3RDPARTYPUBLIC)\boost-versions\boost_1_73_0\stage\lib\</MM_BOOST_LIBDIR>
