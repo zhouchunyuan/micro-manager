@@ -1,0 +1,10 @@
+1) clone MM source files and 3rdpartypublic\PVCAM as described from MM page
+2) download https://dl.bintray.com/boostorg/release/1.73.0/source/boost_1_73_0.zip and extract to C:\Users\chuny\Documents\micro-manager.git\3rdpartypublic\boost_1_73_0
+3) open cmd terminal,  CD to extracted directory. and run bootstrap.bat
+4) build boost: b2.exe install --prefix=C:\Users\chuny\Documents\micro-manager.git\3rdpartypublic\boost-versions\boost_1_73_0\ --build-type=complete --toolset=msvc-14.2 threading=multi address-model=64
+5) go to change : C:\Users\chuny\Documents\micro-manager.git\trunk\buildscripts\VisualStudio\MMCommons.props
+    <MM_BOOST_INCLUDEDIR>$(MM_3RDPARTYPUBLIC)\boost-versions\boost_1_73_0\include\boost-1_73</MM_BOOST_INCLUDEDIR>
+    <MM_BOOST_LIBDIR>$(MM_3RDPARTYPUBLIC)\boost-versions\boost_1_73_0\lib</MM_BOOST_LIBDIR>
+6) change solution configuration and platform to Release x64
+7) change platform toolset to be VS2019 14.2
+8) add #include <algorithm> to PvRoiCollection.cpp

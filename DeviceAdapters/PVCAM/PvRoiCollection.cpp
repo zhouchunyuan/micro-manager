@@ -4,6 +4,8 @@
 
 #include <vector>
 
+#include <algorithm>
+
 //=============================================================================
 
 PvRoiCollection::PvRoiCollection() :
