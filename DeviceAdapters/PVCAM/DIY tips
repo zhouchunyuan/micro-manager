@@ -1,0 +1,6 @@
+    add " memset(pixBuffer, 1, GetImageBufferSize());" in the postProcessSingleFrame() function
+    
+    before the following lines to modifiy the live display images:
+    
+    *pOutBuf = pixBuffer;
+    return DEVICE_OK;
