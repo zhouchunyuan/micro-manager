@@ -1,0 +1,13 @@
+1) download opencv installer , install it to 3rdpartypublic directory.
+2) after installation, it creates two folders : opencv\build and opencv\source
+3) refer to the web : https://bleedai.com/installation-of-opencv-4-3-0-in-windows-10-from-source-with-nvidia-gpu-support-non-free-flags-enabled/
+4) download and run cmake GUI, set source code folder to "...opencv\source" and build to "...opencv\build", select configuration to start build
+5) after build, click generate to generate lib and dll
+6) after generation, click "open project" to open opencv.sln. And select to build only "highgui" and "imgproc"
+    this will create : 3rdpartypublic\opencv\build\bin\Release\ ...dlls and 3rdpartypublic\opencv\build\lib\Release\...libs
+7) In MM project, set 
+     a) C:C++\General\Additional Include directories: $(MM_3RDPARTYPUBLIC)\opencv\build\include
+     b) Linker\General\Additional Library Directories: $(MM_3RDPARTYPUBLIC)\opencv\build\lib\Release
+     c) Linker\Input\Additional Dependencies:opencv_core440.lib;opencv_highgui440.lib;opencv_imgproc440.lib;
+8) Copy 3rdpartypublic\opencv\build\bin\Release\...dlls to MM installation directory.
+9) in the source file, change #include "opencv/highgui.h" to "opencv2/highgui/highgui.hpp", and other head files as well.
