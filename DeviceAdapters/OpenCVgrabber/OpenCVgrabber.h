@@ -45,7 +45,10 @@
 #pragma warning(push)
 #pragma warning(disable: 4267)
 #endif
-#include "opencv/highgui.h"
+#include "opencv2/highgui/highgui.hpp"
+#include "opencv2/videoio.hpp"
+#include "opencv2/core/core.hpp"
+#include "opencv2/imgproc/imgproc.hpp"
 #ifdef _MSC_VER
 #pragma warning(pop)
 #endif

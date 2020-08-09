@@ -39,8 +39,9 @@
 using namespace cv;
 using namespace std;
 
-CvCapture* capture_;
-IplImage* frame_; // do not modify, do not release!
+//CvCapture* capture_;
+Mat frame_; // do not modify, do not release!
+VideoCapture capture_(0);
 
 const double COpenCVgrabber::nominalPixelSizeUm_ = 1.0;
 
@@ -139,7 +140,7 @@ MODULE_API void DeleteDevice(MM::Device* pDevice)
 */
 COpenCVgrabber::COpenCVgrabber() :
    CCameraBase<COpenCVgrabber> (),
-   cameraID_(0),
+   cameraID_(1),
    initialized_(false),
    readoutUs_(0.0),
    scanMode_(1),
@@ -196,9 +197,10 @@ COpenCVgrabber::COpenCVgrabber() :
 */
 COpenCVgrabber::~COpenCVgrabber()
 {
-   if(capture_)
+   if(capture_.isOpened())
    {
-	   cvReleaseCapture(&capture_);
+	   //cvReleaseCapture(&capture_);
+       capture_.release();
 	}
    delete thd_;
 }
@@ -233,16 +235,20 @@ int COpenCVgrabber::Initialize()
 
    // start opencv capture_ from first device, 
    // we need to initialise hardware early on to discover properties
-   capture_ = cvCaptureFromCAM(cameraID_);
+   //capture_ = cvCaptureFromCAM(cameraID_);
+   capture_.open( cameraID_);
 
-   if (!capture_) // do we have a capture_ device?
+   //if (!capture_) // do we have a capture_ device?
+   if(   ! capture_.isOpened())
    {
      return DEVICE_NOT_CONNECTED;
    }
    // ignore first frame to make it work with more cameras
-   cvQueryFrame(capture_);
-   frame_ = cvQueryFrame(capture_);
-   if (!frame_)
+   //cvQueryFrame(capture_);
+   //frame_ = cvQueryFrame(capture_);
+   capture_.grab();
+   capture_.read(frame_);
+   if (frame_.empty())
    {
       return FAILED_TO_GET_IMAGE;
    }
@@ -251,8 +257,10 @@ int COpenCVgrabber::Initialize()
    long w = frame_->width;
    long h = frame_->height;
 #else
-   long w = (long) cvGetCaptureProperty(capture_, CV_CAP_PROP_FRAME_WIDTH);
-   long h = (long) cvGetCaptureProperty(capture_, CV_CAP_PROP_FRAME_HEIGHT);
+   //long w = (long) cvGetCaptureProperty(capture_, CV_CAP_PROP_FRAME_WIDTH);
+   //long h = (long) cvGetCaptureProperty(capture_, CV_CAP_PROP_FRAME_HEIGHT);
+   long w = (long)capture_.get(CAP_PROP_FRAME_WIDTH);
+   long h = (long)capture_.get(CAP_PROP_FRAME_HEIGHT);
 #endif
 
 
@@ -425,14 +433,64 @@ int COpenCVgrabber::Initialize()
 */
 int COpenCVgrabber::Shutdown()
 {
-	if(capture_){
-	   cvReleaseCapture(&capture_);
-	}
+    if (capture_.isOpened())
+    {
+        //cvReleaseCapture(&capture_);
+        capture_.release();
+    }
 
    initialized_ = false;
    return DEVICE_OK;
 }
 
+
+void test() {
+    //Open the default video camera
+    VideoCapture cap(0);
+
+    // if not success, exit program
+    if (cap.isOpened() == false)
+    {
+        cout << "Cannot open the video camera" << endl;
+        cin.get(); //wait for any key press
+        return ;
+    }
+
+    double dWidth = cap.get(CAP_PROP_FRAME_WIDTH); //get the width of frames of the video
+    double dHeight = cap.get(CAP_PROP_FRAME_HEIGHT); //get the height of frames of the video
+
+    cout << "Resolution of the video : " << dWidth << " x " << dHeight << endl;
+
+    string window_name = "My Camera Feed";
+    namedWindow(window_name); //create a window called "My Camera Feed"
+
+    while (true)
+    {
+        Mat frame;
+        bool bSuccess = cap.read(frame); // read a new frame from video 
+
+        //Breaking the while loop if the frames cannot be captured
+        if (bSuccess == false)
+        {
+            cout << "Video camera is disconnected" << endl;
+            cin.get(); //Wait for any key press
+            break;
+        }
+
+        //show the frame in the created window
+        imshow(window_name, frame);
+
+        //wait for for 10 ms until any key is pressed.  
+        //If the 'Esc' key is pressed, break the while loop.
+        //If the any other key is pressed, continue the loop 
+        //If any key is not pressed withing 10 ms, continue the loop 
+        if (waitKey(10) == 27)
+        {
+            cout << "Esc key is pressed by user. Stoppig the video" << endl;
+            break;
+        }
+    }
+}
 /**
 * Performs exposure and grabs a single image.
 * This function should block during the actual exposure and return immediately afterwards 
@@ -441,15 +499,43 @@ int COpenCVgrabber::Shutdown()
 */
 int COpenCVgrabber::SnapImage()
 {
-   if (!initialized_)
-      return CAMERA_NOT_INITIALIZED;
+    if (!initialized_)
+        return CAMERA_NOT_INITIALIZED;
 
-   MM::MMTime startTime = GetCurrentMMTime();
-   double exp = GetExposure();
-   double expUs = exp * 1000.0;
+    MM::MMTime startTime = GetCurrentMMTime();
+    double exp = GetExposure();
+    double expUs = exp * 1000.0;
 
-   cvGrabFrame(capture_);
-   
+    //VideoCapture cap(0);
+
+    // if not success, exit program
+    if (capture_.isOpened() == false)
+    {
+        GetCoreCallback()->LogMessage(this, "camera Open wrong in test", 0);
+        return -1;
+    }
+
+    bool bSuccess = capture_.grab(); // read a new frame from video 
+    capture_.retrieve(frame_); // could also be capture_.read(frame_);
+    if (bSuccess == false)
+    {
+        GetCoreCallback()->LogMessage(this, "camera capture wrong in test", 0);
+    }
+    /*
+    string s1 = to_string(img_.Width());
+    string s2 = to_string(img_.Height());
+    string s3 = to_string(frame_.rows);
+    string s4 = to_string(frame_.cols);
+    string s5 = to_string(frame_.channels());
+    string s6 = to_string(img_.Depth());
+    string s = s1 + "," + s2 + "///" + s3 + "," + s4+" ch="+s5 + "img depth="+s6;
+    GetCoreCallback()->LogMessage(this, s.data(), 0); */
+    Mat temp;
+    cvtColor(frame_, temp, COLOR_RGB2RGBA);
+    img_.SetPixels(temp.data);
+   //cvGrabFrame(capture_);
+
+
    MM::MMTime s0(0,0);
    MM::MMTime t2 = GetCurrentMMTime();
    if( s0 < startTime )
@@ -469,7 +555,7 @@ int COpenCVgrabber::SnapImage()
 
    }   
    readoutStartTime_ = GetCurrentMMTime();
-
+   //test();
    return DEVICE_OK;
 }
 
@@ -489,7 +575,7 @@ const unsigned char* COpenCVgrabber::GetImageBuffer()
    if (!initialized_)
       return NULL;
 
-   IplImage* temp; // used during conversion
+   Mat temp; // used during conversion
    MMThreadGuard g(imgPixelsLock_);
    MM::MMTime readoutTime(readoutUs_);
    while (readoutTime > (GetCurrentMMTime() - readoutStartTime_))
@@ -497,16 +583,18 @@ const unsigned char* COpenCVgrabber::GetImageBuffer()
       CDeviceUtils::SleepMs(1);
    }
 
-   cvRetrieveFrame(capture_); // throw away old image
-   temp = cvRetrieveFrame(capture_);
-   if(!temp) return 0;
+   capture_.grab(); // throw away old image
+   capture_.read(temp);
+   if(temp.empty()) return 0;
    //Mat temp_mat (temp);
 
    if(xFlip_ == true){ 
-      cvFlip(temp,NULL,1);
+       cv::flip(temp, temp, 1);
+      //cvFlip(temp,NULL,1);
    }
    if(yFlip_ == true){
-      cvFlip(temp,NULL,0);
+       cv::flip(temp, temp, 0);
+      //cvFlip(temp,NULL,0);
    }
 
    char buf[MM::MaxStrLength];
@@ -532,9 +620,10 @@ const unsigned char* COpenCVgrabber::GetImageBuffer()
       */
 
       if(roiX_ == 0 && roiY_ == 0){
-         RGB3toRGB4(temp->imageData, (char *) img_.GetPixelsRW(), temp->width, temp->height);
+         //RGB3toRGB4(temp->imageData, (char *) img_.GetPixelsRW(), temp->width, temp->height);
+          cvtColor(temp, temp, COLOR_RGB2RGBA);
       } else {
-         cvSetImageROI(temp,cvRect(roiX_,roiY_,img_.Width(),img_.Height()));
+        /* cvSetImageROI(temp,cvRect(roiX_,roiY_,img_.Width(),img_.Height()));
          IplImage *ROI = cvCreateImage(cvSize(img_.Width(),img_.Height()),
             temp->depth,
             temp->nChannels);
@@ -545,13 +634,13 @@ const unsigned char* COpenCVgrabber::GetImageBuffer()
          cvResetImageROI(temp);
          RGB3toRGB4(temp->imageData, (char *) img_.GetPixelsRW(), ROI->width, ROI->height);		
          //cvCvtColor(&ROI,(CvArr *) temp->imageData,CV_RGB2RGBA);// possible alternative to the padding loop - if I can get it not to break!
-         cvReleaseImage(&ROI);
+         cvReleaseImage(&ROI);*/
       }
 
    } else {
       unsigned int srcOffset = 0;
-      for(int i=0; i < temp->width * temp->height; i++){
-         memcpy(img_.GetPixelsRW()+i, temp->imageData+srcOffset,1);
+      for(int i=0; i < temp.rows * temp.cols; i++){
+         memcpy(img_.GetPixelsRW()+i, temp.data+srcOffset,1);
          srcOffset += 3;
       } 
    }
@@ -696,8 +785,9 @@ int COpenCVgrabber::ClearROI()
 */
 double COpenCVgrabber::GetExposure() const
 {
-	double exp = cvGetCaptureProperty(capture_,CV_CAP_PROP_EXPOSURE); // try to get the exposure from OpenCV - not all drivers allow this
-	if(exp >= 1)
+	//double exp = cvGetCaptureProperty(capture_,CV_CAP_PROP_EXPOSURE); // try to get the exposure from OpenCV - not all drivers allow this
+    double exp = capture_.get(CAP_PROP_EXPOSURE);
+    if(exp >= 1)
       return exp; // if it works, great, return it, otherwise...
 
 
@@ -716,7 +806,8 @@ double COpenCVgrabber::GetExposure() const
 void COpenCVgrabber::SetExposure(double exp)
 {
    SetProperty(MM::g_Keyword_Exposure, CDeviceUtils::ConvertToString(exp));
-   cvSetCaptureProperty(capture_,CV_CAP_PROP_EXPOSURE,(long)exp); 
+   //cvSetCaptureProperty(capture_,CV_CAP_PROP_EXPOSURE,(long)exp); 
+   capture_.set(CAP_PROP_EXPOSURE, (long)exp);
    // there is no benefit from checking if this works (many capture_ drivers via opencv 
    // just don't allow this) - just carry on regardless.
 }
@@ -1100,14 +1191,16 @@ int COpenCVgrabber::OnGain(MM::PropertyBase* pProp, MM::ActionType eAct)
 
          long gain;
          pProp->Get(gain);
-		 cvSetCaptureProperty(capture_,CV_CAP_PROP_GAIN,gain);
+		 //cvSetCaptureProperty(capture_,CV_CAP_PROP_GAIN,gain);
+         capture_.set(CAP_PROP_GAIN, gain);
 		 ret=DEVICE_OK;
       }break;
    case MM::BeforeGet:
       {
          
 		 double gain;
-		 gain = cvGetCaptureProperty(capture_,CV_CAP_PROP_GAIN);
+		 //gain = cvGetCaptureProperty(capture_,CV_CAP_PROP_GAIN);
+         gain = capture_.get(CAP_PROP_GAIN);
 		 if(!gain) return DEVICE_ERR;
 		 ret=DEVICE_OK;
 			pProp->Set((double)gain);
@@ -1376,11 +1469,15 @@ int COpenCVgrabber::OnResolution(MM::PropertyBase* pProp, MM::ActionType eAct)
 		 long w = atoi(width.c_str());
 		 long h = atoi(height.c_str());
 
-		 cvSetCaptureProperty(capture_, CV_CAP_PROP_FRAME_WIDTH, (double) w);
-		 cvSetCaptureProperty(capture_, CV_CAP_PROP_FRAME_HEIGHT, (double) h);
+		 //cvSetCaptureProperty(capture_, CV_CAP_PROP_FRAME_WIDTH, (double) w);
+		 //cvSetCaptureProperty(capture_, CV_CAP_PROP_FRAME_HEIGHT, (double) h);
+         capture_.set(CAP_PROP_FRAME_WIDTH, (double)w);
+         capture_.set(CAP_PROP_FRAME_HEIGHT, (double)h);
 
-		 cameraCCDXSize_ = (long) cvGetCaptureProperty(capture_, CV_CAP_PROP_FRAME_WIDTH);
-		 cameraCCDYSize_ = (long) cvGetCaptureProperty(capture_, CV_CAP_PROP_FRAME_HEIGHT);
+		 //cameraCCDXSize_ = (long) cvGetCaptureProperty(capture_, CV_CAP_PROP_FRAME_WIDTH);
+		 //cameraCCDYSize_ = (long) cvGetCaptureProperty(capture_, CV_CAP_PROP_FRAME_HEIGHT);
+         cameraCCDXSize_ = (long) capture_.get(CAP_PROP_FRAME_WIDTH);
+         cameraCCDYSize_ = (long)capture_.get(CAP_PROP_FRAME_HEIGHT);
 		 if(!(cameraCCDXSize_ > 0) || !(cameraCCDYSize_ > 0))
 			 return DEVICE_ERR;
 		 ret = ResizeImageBuffer();
