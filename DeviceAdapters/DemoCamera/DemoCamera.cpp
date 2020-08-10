@@ -32,6 +32,10 @@
 #include "WriteCompactTiffRGB.h"
 #include <iostream>
 
+#include "opencv2/imgproc/imgproc.hpp"
+#include "opencv2/highgui/highgui.hpp"
+#include "opencv2/core/types.hpp"
+#include "opencv2/imgcodecs/imgcodecs.hpp"
 
 
 using namespace std;
@@ -377,6 +381,11 @@ int CDemoCamera::Initialize()
    assert(nRet == DEVICE_OK);
    SetPropertyLimits(MM::g_Keyword_Exposure, 0.0, exposureMaximum_);
 
+   // threshold
+   nRet = CreateFloatProperty("threshold", 1000.0, false);
+   assert(nRet == DEVICE_OK);
+   SetPropertyLimits("threshold", 0.0, 4095);
+
 	CPropertyActionEx *pActX = 0;
 	// create an extended (i.e. array) properties 1 through 4
 	
@@ -592,6 +601,16 @@ int CDemoCamera::SnapImage()
    if (!fastImage_)
    {
       GenerateSyntheticImage(img_, exp);
+      
+ /*     unsigned char* data = img_.GetPixelsRW();
+      int rows = GetImageWidth();
+      int cols = GetImageHeight();
+      cv::Mat img(rows, cols, CV_16U, data);
+      cv::Mat thr_img(rows, cols, CV_16U);
+      cv::threshold(img, thr_img, 1000, 2000, cv::THRESH_TOZERO);
+      unsigned char* thr_data = (unsigned char*)(thr_img.data);
+      img_.SetPixels(thr_data);
+      */
    }
 
    MM::MMTime s0(0,0);
@@ -2397,6 +2416,42 @@ void CDemoCamera::GenerateSyntheticImage(ImgBuffer& img, double exp)
       }
    }
    dPhase_ += lSinePeriod / 4.;
+
+   int threshold = 0;
+   char buftmp[MM::MaxStrLength];
+   int ret = GetProperty("threshold", buftmp);
+   if (ret == DEVICE_OK)threshold= atoi(buftmp);
+
+   unsigned char* data = img_.GetPixelsRW();
+   int rows = GetImageWidth();
+   int cols = GetImageHeight();
+   cv::Mat src_img(rows, cols, CV_16U, data);//create Mat using data
+   cv::Mat thr_img;
+   cv::threshold(src_img, thr_img, threshold, 1, cv::THRESH_BINARY);
+   thr_img.convertTo(thr_img, CV_8U);//must be 8bit for threshold
+
+   // find moments of the image
+   //cv::Moments m = cv::moments(thr_img, true);
+   //cv::Point p(m.m10 / m.m00, m.m01 / m.m00);
+
+
+   vector<vector<cv::Point> > contours;
+   vector<cv::Vec4i> hierarchy;
+   findContours(thr_img, contours, hierarchy, cv::RETR_TREE, cv::CHAIN_APPROX_SIMPLE);
+
+   cv::drawContours(src_img, contours, -1, 4095,3);
+   for (vector<cv::Point> contour : contours) {
+       cv::Moments m = cv::moments(contour, true);
+       cv::Point p(m.m10 / m.m00, m.m01 / m.m00);
+           cv::drawContours(src_img, vector<vector<cv::Point> >(1, contour), -1, 4095, 1, 8);
+           cv::circle(src_img, p, 10, cv::Scalar(0.0));
+   }
+
+   cv::circle(src_img, cv::Point(img_.Width() / 2, img_.Height() / 2), 10, cv::Scalar(0.0));
+   
+
+   unsigned char* thr_data = (unsigned char*)(src_img.data);
+   img_.SetPixels(thr_data);
 }
 
 
