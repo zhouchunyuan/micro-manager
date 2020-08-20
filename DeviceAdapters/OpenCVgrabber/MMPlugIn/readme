@@ -1,0 +1,2 @@
+send roi center to (TrackRoiCenterX, TrackRoiCenterY), and roi size to "TrackRoiSize"
+get (detectedX,detectedY) as pixel coordinate
