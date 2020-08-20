@@ -41,10 +41,154 @@ using namespace std;
 
 //CvCapture* capture_;
 Mat frame_; // do not modify, do not release!
-VideoCapture capture_(0);
+VideoCapture capture_;
+///////////////////////////////////////////////////////////////////////////////////////////////
+//
+// Steps to add OpenCVTracker to CameraAdapter
+// 0) #define TRACKING_CAMERA_CLASS "CameraForCapture"
+// 1) add 3 variables "isTracking", "isRedefineTracking" "trackBox"
+// 2) add the following global functions:
+//        bool Tracking_Create_Or_Reset_Tracker(TRACKING_CAMERA_CLASS* cam, Mat img);
+//        bool Tracking_Update_Tracking_Area(TRACKING_CAMERA_CLASS* cam, Mat frame_);
+//        bool Tracking_Plugin_Adapter_Properties(TRACKING_CAMERA_CLASS* cam);
+//        int TRACKING_CAMERA_CLASS::OnTrackingState(MM::PropertyBase* pProp, MM::ActionType eAct)
+//        ( This is the camera class Action callback function, need declareration in .h file )
+// 3) call "Tracking_Plugin_Adapter_Properties(this);" in "TRACKING_CAMERA_CLASS"::initialize()
+// 4) run Tracking_Update_Tracking_Area(this, img); in Capture loop(e.g. SnapImage())
+//           // Update the tracking result
+//           // if (Tracking_Update_Tracking_Area(this, frame_))
+//                  rectangle(frame_, trackBox, Scalar(255, 0, 0), 2, 1);
+//
+/////////////////////////////////////////////////////////////////////////////////////////////////
+/***********declare tracking variables ****************/
+#define TRACKING_CAMERA_CLASS COpenCVgrabber
+Ptr<Tracker> tracker=NULL;
+string trackerTypes[8] = { "BOOSTING"  , "MIL"     , "KCF"     , "TLD",
+                            "MEDIANFLOW", "GOTURN"  , "MOSSE"   , "CSRT" };
+string trackerType = trackerTypes[7];
+bool isTracking = false;
+bool isRedefineTracking = false;
+Rect2d trackBox;
+//======================================================
+/***********declare tracking functions ****************/
+bool Tracking_Create_Or_Reset_Tracker(TRACKING_CAMERA_CLASS* cam, Mat trkimg) {
+
+    if (trackerType == "BOOSTING")
+        tracker = TrackerBoosting::create();
+    if (trackerType == "MIL")
+        tracker = TrackerMIL::create();
+    if (trackerType == "KCF")
+        tracker = TrackerKCF::create();
+    if (trackerType == "TLD")
+        tracker = TrackerTLD::create();
+    if (trackerType == "MEDIANFLOW")
+        tracker = TrackerMedianFlow::create();
+    if (trackerType == "GOTURN")
+        tracker = TrackerGOTURN::create();
+    if (trackerType == "MOSSE")
+        tracker = TrackerMOSSE::create();
+    if (trackerType == "CSRT")
+        tracker = TrackerCSRT::create();
+
+    int trackRoiCenterX = 0;
+    int trackRoiCenterY = 0;
+    int trackRoiSize = 0;
+
+    char buftmp[MM::MaxStrLength];
+
+    if (DEVICE_OK== cam->GetProperty("TrackRoiCenterX", buftmp))
+        trackRoiCenterX = atoi(buftmp);
+
+    if (DEVICE_OK == cam->GetProperty("TrackRoiCenterY", buftmp))
+        trackRoiCenterY = atoi(buftmp);
+
+    if (DEVICE_OK == cam->GetProperty("TrackRoiSize", buftmp))
+        trackRoiSize = atoi(buftmp);
+
+    double x =  trackRoiCenterX - trackRoiSize / 2;
+    double y =  trackRoiCenterY - trackRoiSize / 2;
+    double L =  trackRoiSize;
+
+    trackBox = Rect2d(x, y, L, L);
+
+    bool bret = tracker->init(trkimg, trackBox);
+    
+    return bret;
+}
+
+/**************update tracking or new tracker **************/
+bool Tracking_Update_Tracking_Area(TRACKING_CAMERA_CLASS* cam, Mat trkimg) {
+    if (isTracking) {
+        if (isRedefineTracking) {
+            tracker.release();
+            tracker = NULL;
+            isRedefineTracking = false;//clear the flag
+        }
+
+        if (tracker.empty()) {
+            Tracking_Create_Or_Reset_Tracker(cam, trkimg);
+        }
+
+        if (tracker->update(trkimg, trackBox)) {
+            cam->SetProperty("detectedX", CDeviceUtils::ConvertToString(trackBox.x + trackBox.width / 2.0));
+            cam->SetProperty("detectedY", CDeviceUtils::ConvertToString(trackBox.y + trackBox.height / 2.0));
+        }
+    }
+    else {
+        if (!tracker.empty()) {
+            tracker.release();
+            tracker = NULL;
+        }
+    }
+    return isTracking;
+}
+
+/**************add tracking properties **************/
+bool Tracking_Plugin_Adapter_Properties(TRACKING_CAMERA_CLASS* cam) {
+    int nRet = cam->CreateFloatProperty("detectedX", 0.0, false);
+    assert(nRet == DEVICE_OK);
+    nRet = cam->CreateFloatProperty("detectedY", 0.0, false);
+    assert(nRet == DEVICE_OK);
+    nRet = cam->CreateIntegerProperty("TrackRoiCenterX", 0, false);
+    assert(nRet == DEVICE_OK);
+    nRet = cam->CreateIntegerProperty("TrackRoiCenterY", 0, false);
+    assert(nRet == DEVICE_OK);
+    nRet = cam->CreateIntegerProperty("TrackRoiSize", 0, false);
+    assert(nRet == DEVICE_OK);
+
+    TRACKING_CAMERA_CLASS::CPropertyAction* pAct = new TRACKING_CAMERA_CLASS::CPropertyAction(cam, &TRACKING_CAMERA_CLASS::OnTrackingState);
+    nRet = cam->CreateProperty("trackingState", "Idle", MM::String, false, pAct);
+    assert(nRet == DEVICE_OK);
+    vector<string> trackingOnOffValues;
+    trackingOnOffValues.push_back("Idle");
+    trackingOnOffValues.push_back("Ready");
+    trackingOnOffValues.push_back("Tracking");
+    nRet = cam->SetAllowedValues("trackingState", trackingOnOffValues);
+    assert(nRet == DEVICE_OK);
+}
+
+/************tracking****************/
+int TRACKING_CAMERA_CLASS::OnTrackingState(MM::PropertyBase* pProp, MM::ActionType eAct)
+{
+    if (eAct == MM::AfterSet)
+    {
+        char buftmp[MM::MaxStrLength];
+        int ret = GetProperty("trackingState", buftmp);
+        string trackingState(buftmp);
+        if (trackingState == "Idle") { isTracking = false; }
+        if (trackingState == "Ready") { isTracking = false; }
+        if (trackingState == "Tracking") { 
+            bool lastIsTracking = isTracking;
+            if (!isTracking)
+                isTracking = true;
+            else
+                isRedefineTracking = true;// turn on redefine. the flag of isRedefineTracking should be cleared soon after redefine
+        }
+    }
+    return DEVICE_OK;
+}
 
 const double COpenCVgrabber::nominalPixelSizeUm_ = 1.0;
-
 
 // External names used used by the rest of the system
 // to load particular device from the "DemoCamera.dll" library
@@ -157,6 +301,7 @@ COpenCVgrabber::COpenCVgrabber() :
    triggerDevice_(""),
    stopOnOverFlow_(false)
 {
+
    // call the base class method to set-up default error codes/messages
    InitializeDefaultErrorMessages();
    SetErrorText(FAILED_TO_GET_IMAGE, "Could not get an image from this camera");
@@ -230,13 +375,16 @@ int COpenCVgrabber::Initialize()
 
    if (initialized_)
       return DEVICE_OK;
-
+   //init tracking
+   Tracking_Plugin_Adapter_Properties(this);
    // init the hardware
 
    // start opencv capture_ from first device, 
    // we need to initialise hardware early on to discover properties
    //capture_ = cvCaptureFromCAM(cameraID_);
    capture_.open( cameraID_);
+   capture_.set(CAP_PROP_FRAME_WIDTH, 1600);
+   capture_.set(CAP_PROP_FRAME_HEIGHT, 1200);
 
    //if (!capture_) // do we have a capture_ device?
    if(   ! capture_.isOpened())
@@ -402,6 +550,40 @@ int COpenCVgrabber::Initialize()
    CreateProperty("Flip Y","0",MM::Integer,false,pAct);
    SetPropertyLimits("Flip Y",0,1);
 
+   /********tracking properties*******/
+   // object positions
+   nRet = CreateFloatProperty("detectedX", 0.0, false);
+   assert(nRet == DEVICE_OK);
+   nRet = CreateFloatProperty("detectedY", 0.0, false);
+   assert(nRet == DEVICE_OK);
+   nRet = CreateIntegerProperty("TrackRoiCenterX", 0, false);
+   assert(nRet == DEVICE_OK);
+   nRet = CreateIntegerProperty("TrackRoiCenterY", 0, false);
+   assert(nRet == DEVICE_OK);
+   nRet = CreateIntegerProperty("TrackRoiSize", 0, false);
+   assert(nRet == DEVICE_OK);
+
+   pAct = new CPropertyAction(this, &COpenCVgrabber::OnTrackingState);
+   nRet = CreateProperty("trackingState", "Idle", MM::String, false, pAct);
+   assert(nRet == DEVICE_OK);
+   vector<string> trackingOnOffValues;
+   trackingOnOffValues.push_back("Idle");
+   trackingOnOffValues.push_back("Ready");
+   trackingOnOffValues.push_back("Tracking");
+   nRet = SetAllowedValues("trackingState", trackingOnOffValues);
+   assert(nRet == DEVICE_OK);
+   /*
+   nRet = CreateProperty("Select Cam IDs", "0", MM::String, false, pAct);// auto detected cam id
+   assert(nRet == DEVICE_OK);
+   trackingOnOffValues.clear();
+   for (int i = 0; i++; i <= findTrackerCameras()) {
+
+       trackingOnOffValues.push_back(CDeviceUtils::ConvertToString(i));
+   }
+   nRet = SetAllowedValues("tracking Camera IDs", trackingOnOffValues);
+   assert(nRet == DEVICE_OK);
+   */
+
    // synchronize all properties
    // --------------------------
    nRet = UpdateStatus();
@@ -444,53 +626,7 @@ int COpenCVgrabber::Shutdown()
 }
 
 
-void test() {
-    //Open the default video camera
-    VideoCapture cap(0);
 
-    // if not success, exit program
-    if (cap.isOpened() == false)
-    {
-        cout << "Cannot open the video camera" << endl;
-        cin.get(); //wait for any key press
-        return ;
-    }
-
-    double dWidth = cap.get(CAP_PROP_FRAME_WIDTH); //get the width of frames of the video
-    double dHeight = cap.get(CAP_PROP_FRAME_HEIGHT); //get the height of frames of the video
-
-    cout << "Resolution of the video : " << dWidth << " x " << dHeight << endl;
-
-    string window_name = "My Camera Feed";
-    namedWindow(window_name); //create a window called "My Camera Feed"
-
-    while (true)
-    {
-        Mat frame;
-        bool bSuccess = cap.read(frame); // read a new frame from video 
-
-        //Breaking the while loop if the frames cannot be captured
-        if (bSuccess == false)
-        {
-            cout << "Video camera is disconnected" << endl;
-            cin.get(); //Wait for any key press
-            break;
-        }
-
-        //show the frame in the created window
-        imshow(window_name, frame);
-
-        //wait for for 10 ms until any key is pressed.  
-        //If the 'Esc' key is pressed, break the while loop.
-        //If the any other key is pressed, continue the loop 
-        //If any key is not pressed withing 10 ms, continue the loop 
-        if (waitKey(10) == 27)
-        {
-            cout << "Esc key is pressed by user. Stoppig the video" << endl;
-            break;
-        }
-    }
-}
 /**
 * Performs exposure and grabs a single image.
 * This function should block during the actual exposure and return immediately afterwards 
@@ -521,6 +657,12 @@ int COpenCVgrabber::SnapImage()
     {
         GetCoreCallback()->LogMessage(this, "camera capture wrong in test", 0);
     }
+    // Update the tracking result
+    if (Tracking_Update_Tracking_Area(this, frame_))
+        rectangle(frame_, trackBox, Scalar(255, 0, 0), 2, 1);
+
+    putText(frame_, "x="+to_string(trackBox.x+ trackBox.width / 2.0)+",y="+ to_string(trackBox.y + trackBox.height / 2.0), Point(100, 50), FONT_HERSHEY_SIMPLEX, 0.75, Scalar(50, 170, 50), 2);
+ 
     /*
     string s1 = to_string(img_.Width());
     string s2 = to_string(img_.Height());
@@ -1471,8 +1613,10 @@ int COpenCVgrabber::OnResolution(MM::PropertyBase* pProp, MM::ActionType eAct)
 
 		 //cvSetCaptureProperty(capture_, CV_CAP_PROP_FRAME_WIDTH, (double) w);
 		 //cvSetCaptureProperty(capture_, CV_CAP_PROP_FRAME_HEIGHT, (double) h);
-         capture_.set(CAP_PROP_FRAME_WIDTH, (double)w);
-         capture_.set(CAP_PROP_FRAME_HEIGHT, (double)h);
+         capture_.release();
+         capture_.open(cameraID_);
+         capture_.set(CAP_PROP_FRAME_WIDTH, w);
+         capture_.set(CAP_PROP_FRAME_HEIGHT, h);
 
 		 //cameraCCDXSize_ = (long) cvGetCaptureProperty(capture_, CV_CAP_PROP_FRAME_WIDTH);
 		 //cameraCCDYSize_ = (long) cvGetCaptureProperty(capture_, CV_CAP_PROP_FRAME_HEIGHT);

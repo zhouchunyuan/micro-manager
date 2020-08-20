@@ -49,6 +49,7 @@
 #include "opencv2/videoio.hpp"
 #include "opencv2/core/core.hpp"
 #include "opencv2/imgproc/imgproc.hpp"
+#include "opencv2/tracking.hpp"
 #ifdef _MSC_VER
 #pragma warning(pop)
 #endif
@@ -137,6 +138,9 @@ public:
    int OnResolution(MM::PropertyBase* pProp, MM::ActionType eAct);
    int OnFlipX(MM::PropertyBase* pProp, MM::ActionType eAct);
    int OnFlipY(MM::PropertyBase* pProp, MM::ActionType eAct);
+   /*************tracking actions************************/
+   int OnTrackingState(MM::PropertyBase* pProp, MM::ActionType eAct);
+
 private:
    int SetAllowedBinning();
 
