@@ -284,7 +284,7 @@ MODULE_API void DeleteDevice(MM::Device* pDevice)
 */
 COpenCVgrabber::COpenCVgrabber() :
    CCameraBase<COpenCVgrabber> (),
-   cameraID_(1),
+   //cameraID_(0),
    initialized_(false),
    readoutUs_(0.0),
    scanMode_(1),
@@ -382,6 +382,7 @@ int COpenCVgrabber::Initialize()
    // start opencv capture_ from first device, 
    // we need to initialise hardware early on to discover properties
    //capture_ = cvCaptureFromCAM(cameraID_);
+   GetCoreCallback()->LogMessage(this, ("cameraID======================>" + to_string(cameraID_)).c_str(), 0);
    capture_.open( cameraID_);
    capture_.set(CAP_PROP_FRAME_WIDTH, 1600);
    capture_.set(CAP_PROP_FRAME_HEIGHT, 1200);
@@ -1303,9 +1304,7 @@ int COpenCVgrabber::OnCameraID(MM::PropertyBase* pProp, MM::ActionType eAct)
 #ifdef WIN32
    if (eAct == MM::AfterSet)
    {
-      string srcName;
-      pProp->Get(srcName);
-      GetPropertyData(cIDName, srcName.c_str(), cameraID_);
+      pProp->Get(cameraID_);
    }
 #else
    if (eAct == MM::AfterSet)
