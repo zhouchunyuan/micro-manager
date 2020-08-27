@@ -86,18 +86,51 @@ public class Tracking_Bridge implements PlugInFilter, MouseListener, MouseMotion
                         double w = studio.core().getImageWidth();
                         double h = studio.core().getImageHeight();
                         double cal = studio.core().getPixelSizeUm();
+                        double pixErr = 2;
+                        //double maxStepSize = trackRoiSize/10;
+                        
+
+                        try
+                        {
+                            Thread.sleep(1000);
+                        }
+                        catch(InterruptedException ex)
+                        {
+                            Thread.currentThread().interrupt();
+                        }
+                        
                         
                         while(m.tracking && studio.live().getIsLiveModeOn() ){
+                            //try{
+                             //Thread.sleep(500);
                             double dx = Double.parseDouble( m.getProperty( "detectedX"))-w/2;
-                            double dy = -(Double.parseDouble(m.getProperty( "detectedY"))-h/2);//invert y
+                            double dy = Double.parseDouble( m.getProperty( "detectedY"))-h/2;
                             
+                            double PID_Px = 0.8*Math.abs(dx)/w;
+                            double PID_Py = 0.8*Math.abs(dy)/h;
+                            // scale down to maxStepSize
+                            /*
+                            if ( Math.abs(dx) > maxStepSize ){
+                                dy = maxStepSize/Math.abs(dx) * dy;
+                                dx = maxStepSize/Math.abs(dx) * dx;
+                            }
+                            if ( Math.abs(dy) > maxStepSize){
+                                dx = maxStepSize/Math.abs(dy) * dx;
+                                dy = maxStepSize/Math.abs(dy) * dy;
+                            }
+                            */
+                            //IJ.log("screen:dx="+dx+", dy="+dy+" PID_P = "+PID_P);
                             try {
-                                    double x0 = studio.core().getXPosition();
-                                    double y0 = studio.core().getYPosition();
-                                    studio.core().setXYPosition((x0+dx)*cal, (y0+dy)*cal);
-                                    //IJ.log(dx+","+dy);
-                                    studio.core().waitForDevice( studio.core().getXYStageDevice() );
-                                    Thread.sleep(200);
+                                    if( Math.abs(dx) >pixErr || Math.abs(dy) >pixErr ){
+                                        double x0 = studio.core().getXPosition();
+                                        double y0 = studio.core().getYPosition();
+                                        studio.core().setXYPosition(x0-dx*cal*PID_Px, y0+dy*cal*PID_Py);
+
+                                        //IJ.log(" movex:"+(-dx*cal*PID_P) +" | movey:" + (dy*cal*PID_P));
+
+                                        studio.core().waitForDevice( studio.core().getXYStageDevice() );
+                                    }
+                                   
                                     studio.refreshGUI();
                             } catch (Exception e) {
                                     e.printStackTrace();
