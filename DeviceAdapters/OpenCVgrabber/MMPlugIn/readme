@@ -1,2 +1,27 @@
 send roi center to (TrackRoiCenterX, TrackRoiCenterY), and roi size to "TrackRoiSize"
 get (detectedX,detectedY) as pixel coordinate
+
+This document is a tutorial for compiling Micro-Manager 2.0 plugin jars.
+Please refer to https://micro-manager.org/wiki/Version_2.0_Plugins for reference.
+
+the IDE in the above link is IntelliJ . Here I present an example using Netbeans12 to do the same work.
+1) Open Apache Netbeans IDE 12.0
+2) File->New project, select “Java with Ant” and “Java Project with Existing Sources”
+ 
+3) Click Next and give a name to the project 
+ 
+4) Click next and choose source folder:we can use $src$\plugins\Example as source folder. But since it was used in my previous test project, I copied the java files into .\src folder and added it:
+ 
+5) Finally, confirm there are two java files and click finish:
+ 
+6) Then we can see the source files added with error marks and put under default package. If we put the java files in a folder structure like this “org\micromanager\example”, the package will change accordingly.
+ 
+7) Now we will add libraries:right click the libraries item, add all jars in the folder of Micro-Manager installation folder \plugins\Micro-Manager\*.jar
+ 
+8) After adding the jar files, the error marks in the source files disappears(needs several seconds to take effect)
+9) Because in step 4), we did not put source files in any package (directory structure), we have to comment off the line (also do not forget the ExampleFrame.java ):
+//package org.micromanager.plugins.example;
+10) Right click project to open properties to check all items. But normally we can use the defaults.
+11) Click build to find the jar here :\NetBeansProjects\TestProject\dist\TestProject.jar
+12) Copy the TestProject.jar to MM2 installation folder\mmplugin (not plugin) and start MM, we should find the example plugin under the \plugin\developer tools menu:
+ 
