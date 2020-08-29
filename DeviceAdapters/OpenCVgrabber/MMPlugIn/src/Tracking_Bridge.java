@@ -139,7 +139,7 @@ public class Tracking_Bridge implements PlugInFilter, MouseListener, MouseMotion
                                         studio.core().waitForDevice( studio.core().getXYStageDevice() );
                                         double x0 = studio.core().getXPosition();
                                         double y0 = studio.core().getYPosition();
-                                        if(trackingResult == "ok")
+                                        if(trackingResult.equals( "ok" ))
                                             studio.core().setXYPosition(x0+dx, y0+dy);
 
                                         //IJ.log(" movex:"+(-dx*cal*PID_P) +" | movey:" + (dy*cal*PID_P));
