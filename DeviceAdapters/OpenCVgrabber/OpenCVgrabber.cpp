@@ -132,6 +132,10 @@ bool Tracking_Update_Tracking_Area(TRACKING_CAMERA_CLASS* cam, Mat trkimg) {
         if (tracker->update(trkimg, trackBox)) {
             cam->SetProperty("detectedX", CDeviceUtils::ConvertToString(trackBox.x + trackBox.width / 2.0));
             cam->SetProperty("detectedY", CDeviceUtils::ConvertToString(trackBox.y + trackBox.height / 2.0));
+            cam->SetProperty("trackingState", "ok");
+        }
+        else {
+            cam->SetProperty("trackingState", "fail");
         }
     }
     else {
@@ -159,11 +163,18 @@ bool Tracking_Plugin_Adapter_Properties(TRACKING_CAMERA_CLASS* cam) {
     TRACKING_CAMERA_CLASS::CPropertyAction* pAct = new TRACKING_CAMERA_CLASS::CPropertyAction(cam, &TRACKING_CAMERA_CLASS::OnTrackingState);
     nRet = cam->CreateProperty("trackingState", "Idle", MM::String, false, pAct);
     assert(nRet == DEVICE_OK);
-    vector<string> trackingOnOffValues;
-    trackingOnOffValues.push_back("Idle");
-    trackingOnOffValues.push_back("Ready");
-    trackingOnOffValues.push_back("Tracking");
-    nRet = cam->SetAllowedValues("trackingState", trackingOnOffValues);
+    vector<string> trackingStateValues;
+    trackingStateValues.push_back("Idle");
+    trackingStateValues.push_back("Ready");
+    trackingStateValues.push_back("Tracking");
+    nRet = cam->SetAllowedValues("trackingState", trackingStateValues);
+    assert(nRet == DEVICE_OK);
+
+    nRet = cam->CreateStringProperty("trackingResult", "fail", false);//notification to tracking bridge
+    vector<string> trackingResultValues;
+    trackingResultValues.push_back("fail");
+    trackingResultValues.push_back("ok");
+    nRet = cam->SetAllowedValues("trackingState", trackingResultValues);
     assert(nRet == DEVICE_OK);
 }
 
@@ -382,7 +393,7 @@ int COpenCVgrabber::Initialize()
    // start opencv capture_ from first device, 
    // we need to initialise hardware early on to discover properties
    //capture_ = cvCaptureFromCAM(cameraID_);
-   GetCoreCallback()->LogMessage(this, ("cameraID======================>" + to_string(cameraID_)).c_str(), 0);
+
    capture_.open( cameraID_);
    capture_.set(CAP_PROP_FRAME_WIDTH, 1600);
    capture_.set(CAP_PROP_FRAME_HEIGHT, 1200);
