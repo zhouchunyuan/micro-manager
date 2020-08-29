@@ -32,7 +32,7 @@ public class Tracking_Bridge implements PlugInFilter, MouseListener, MouseMotion
                 int roiX;
                 int roiY;
                 MMStudio studio = MMStudio.getInstance();
-                MenuBar m = new MenuBar(studio.getCMMCore().getCameraDevice());
+                MenuBar m = new MenuBar();
 
         
         public int setup(String arg, ImagePlus img) {
@@ -103,11 +103,13 @@ public class Tracking_Bridge implements PlugInFilter, MouseListener, MouseMotion
                         while(m.tracking && studio.live().getIsLiveModeOn() ){
                             //try{
                              //Thread.sleep(500);
-                            double dx = Double.parseDouble( m.getProperty( "detectedX"))-w/2;
-                            double dy = Double.parseDouble( m.getProperty( "detectedY"))-h/2;
+                            String trackingResult =  m.getProperty( "trackingResult");//fail or ok
                             
-                            double PID_Px = 0.8*Math.abs(dx)/w;
-                            double PID_Py = 0.8*Math.abs(dy)/h;
+                            double screen_dx = Double.parseDouble( m.getProperty( "detectedX"))-w/2;
+                            double screen_dy = Double.parseDouble( m.getProperty( "detectedY"))-h/2;
+                            
+                            double PID_Px = 0.8*Math.abs(screen_dx)/w;
+                            double PID_Py = 0.8*Math.abs(screen_dy)/h;
                             // scale down to maxStepSize
                             /*
                             if ( Math.abs(dx) > maxStepSize ){
@@ -121,14 +123,26 @@ public class Tracking_Bridge implements PlugInFilter, MouseListener, MouseMotion
                             */
                             //IJ.log("screen:dx="+dx+", dy="+dy+" PID_P = "+PID_P);
                             try {
-                                    if( Math.abs(dx) >pixErr || Math.abs(dy) >pixErr ){
+                                    if( Math.abs(screen_dx) >pixErr || Math.abs(screen_dy) >pixErr ){
+                                        
+                                        double dx = screen_dx*cal*PID_Px;
+                                        double dy = screen_dy*cal*PID_Py;
+                                        
+                                        if(m.swap_xy){
+                                            double tmp = dy;
+                                            dy = dx;
+                                            dx = tmp;
+                                        }
+                                        if(m.flip_h)dx = -dx;
+                                        if(m.flip_v)dy = -dy;
+                                        
+                                        studio.core().waitForDevice( studio.core().getXYStageDevice() );
                                         double x0 = studio.core().getXPosition();
                                         double y0 = studio.core().getYPosition();
-                                        studio.core().setXYPosition(x0-dx*cal*PID_Px, y0+dy*cal*PID_Py);
+                                        if(trackingResult == "ok")
+                                            studio.core().setXYPosition(x0+dx, y0+dy);
 
                                         //IJ.log(" movex:"+(-dx*cal*PID_P) +" | movey:" + (dy*cal*PID_P));
-
-                                        studio.core().waitForDevice( studio.core().getXYStageDevice() );
                                     }
                                    
                                     studio.refreshGUI();
@@ -159,7 +173,6 @@ public class Tracking_Bridge implements PlugInFilter, MouseListener, MouseMotion
         
 
     }
-    
     //Use mouse wheel to adjust Roi size
      @Override
     public void mouseWheelMoved(MouseWheelEvent e) {
@@ -173,4 +186,5 @@ public class Tracking_Bridge implements PlugInFilter, MouseListener, MouseMotion
        img.setRoi(roiX-trackRoiSize/2,roiY-trackRoiSize/2,trackRoiSize,trackRoiSize);
        img.updateAndDraw();
     }
+    
 }
