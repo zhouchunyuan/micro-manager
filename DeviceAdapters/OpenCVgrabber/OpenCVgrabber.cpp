@@ -132,10 +132,10 @@ bool Tracking_Update_Tracking_Area(TRACKING_CAMERA_CLASS* cam, Mat trkimg) {
         if (tracker->update(trkimg, trackBox)) {
             cam->SetProperty("detectedX", CDeviceUtils::ConvertToString(trackBox.x + trackBox.width / 2.0));
             cam->SetProperty("detectedY", CDeviceUtils::ConvertToString(trackBox.y + trackBox.height / 2.0));
-            cam->SetProperty("trackingState", "ok");
+            cam->SetProperty("trackingResult", "ok");
         }
         else {
-            cam->SetProperty("trackingState", "fail");
+            cam->SetProperty("trackingResult", "fail");
         }
     }
     else {
