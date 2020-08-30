@@ -57,7 +57,188 @@
 #include "AcqThread.h"
 #include "Version.h"
 
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable: 4267)
+#endif
+#include "opencv2/imgproc/imgproc.hpp"
+#include "opencv2/highgui/highgui.hpp"
+
+#include "opencv2/videoio.hpp"
+#include "opencv2/core/core.hpp"
+#include "opencv2/tracking.hpp"
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
+
 using namespace std;
+
+using namespace cv;// OpenCV4.4.0
+///////////////////////////////////////////////////////////////////////////////////////////////
+//
+// Steps to add OpenCVTracker to CameraAdapter
+// 0) #define TRACKING_CAMERA_CLASS "CameraForCapture"
+// 1) add 3 variables "isTracking", "isRedefineTracking" "trackBox"
+// 2) add the following global functions:
+//        bool Tracking_Create_Or_Reset_Tracker(TRACKING_CAMERA_CLASS* cam, Mat img);
+//        bool Tracking_Update_Tracking_Area(TRACKING_CAMERA_CLASS* cam, Mat frame_);
+//        bool Tracking_Plugin_Adapter_Properties(TRACKING_CAMERA_CLASS* cam);
+//        int TRACKING_CAMERA_CLASS::OnTrackingState(MM::PropertyBase* pProp, MM::ActionType eAct)
+//        ( This is the camera class Action callback function, need declareration in .h file )
+// 3) call "Tracking_Plugin_Adapter_Properties(this);" in "TRACKING_CAMERA_CLASS"::initialize()
+// 4) run Tracking_Update_Tracking_Area(this, img); in Capture loop(e.g. PostProcessSingleFrame)
+//           // Update the tracking result. Becareful: need to convert CV_16U to CV_8UC3
+//               cv::Mat img( rows, cols, CV_16U, pixBuffer);
+//               vector<Mat> channels(3);
+//               channels[0] = img / 256;
+//               channels[1] = img / 256;
+//               channels[2] = img / 256;
+//               Mat rgb;
+//               merge(channels, rgb);
+//               rgb.convertTo(rgb, CV_8UC3);
+//               if (Tracking_Update_Tracking_Area(this, rgb))
+//                       rectangle(img, trackBox, Scalar(65535), 2, 1);
+//
+/////////////////////////////////////////////////////////////////////////////////////////////////
+/***********declare tracking variables ****************/
+#define TRACKING_CAMERA_CLASS Universal
+Ptr<Tracker> tracker = NULL;
+string trackerTypes[8] = { "BOOSTING"  , "MIL"     , "KCF"     , "TLD",
+                            "MEDIANFLOW", "GOTURN"  , "MOSSE"   , "CSRT" };
+string trackerType = trackerTypes[7];
+bool isTracking = false;
+bool isRedefineTracking = false;
+Rect2d trackBox;
+//======================================================
+/***********declare tracking functions ****************/
+bool Tracking_Create_Or_Reset_Tracker(TRACKING_CAMERA_CLASS* cam, Mat trkimg) {
+
+    if (trackerType == "BOOSTING")
+        tracker = TrackerBoosting::create();
+    if (trackerType == "MIL")
+        tracker = TrackerMIL::create();
+    if (trackerType == "KCF")
+        tracker = TrackerKCF::create();
+    if (trackerType == "TLD")
+        tracker = TrackerTLD::create();
+    if (trackerType == "MEDIANFLOW")
+        tracker = TrackerMedianFlow::create();
+    if (trackerType == "GOTURN")
+        tracker = TrackerGOTURN::create();
+    if (trackerType == "MOSSE")
+        tracker = TrackerMOSSE::create();
+    if (trackerType == "CSRT")
+        tracker = TrackerCSRT::create();
+
+    int trackRoiCenterX = 0;
+    int trackRoiCenterY = 0;
+    int trackRoiSize = 0;
+
+    char buftmp[MM::MaxStrLength];
+
+    if (DEVICE_OK == cam->GetProperty("TrackRoiCenterX", buftmp))
+        trackRoiCenterX = atoi(buftmp);
+
+    if (DEVICE_OK == cam->GetProperty("TrackRoiCenterY", buftmp))
+        trackRoiCenterY = atoi(buftmp);
+
+    if (DEVICE_OK == cam->GetProperty("TrackRoiSize", buftmp))
+        trackRoiSize = atoi(buftmp);
+
+    double x = trackRoiCenterX - trackRoiSize / 2;
+    double y = trackRoiCenterY - trackRoiSize / 2;
+    double L = trackRoiSize;
+
+    trackBox = Rect2d(x, y, L, L);
+
+    bool bret = tracker->init(trkimg, trackBox);
+
+    return bret;
+}
+
+/**************update tracking or new tracker **************/
+bool Tracking_Update_Tracking_Area(TRACKING_CAMERA_CLASS* cam, Mat trkimg) {
+    if (isTracking) {
+        if (isRedefineTracking) {
+            tracker.release();
+            tracker = NULL;
+            isRedefineTracking = false;//clear the flag
+        }
+
+        if (tracker.empty()) {
+            Tracking_Create_Or_Reset_Tracker(cam, trkimg);
+        }
+
+        if (tracker->update(trkimg, trackBox)) {
+            cam->SetProperty("detectedX", CDeviceUtils::ConvertToString(trackBox.x + trackBox.width / 2.0));
+            cam->SetProperty("detectedY", CDeviceUtils::ConvertToString(trackBox.y + trackBox.height / 2.0));
+            cam->SetProperty("trackingResult", "ok");
+        }
+        else {
+            cam->SetProperty("trackingResult", "fail");
+        }
+    }
+    else {
+        if (!tracker.empty()) {
+            tracker.release();
+            tracker = NULL;
+        }
+    }
+    return isTracking;
+}
+
+/**************add tracking properties **************/
+bool Tracking_Plugin_Adapter_Properties(TRACKING_CAMERA_CLASS* cam) {
+    int nRet = cam->CreateFloatProperty("detectedX", 0.0, false);
+    assert(nRet == DEVICE_OK);
+    nRet = cam->CreateFloatProperty("detectedY", 0.0, false);
+    assert(nRet == DEVICE_OK);
+    nRet = cam->CreateIntegerProperty("TrackRoiCenterX", 0, false);
+    assert(nRet == DEVICE_OK);
+    nRet = cam->CreateIntegerProperty("TrackRoiCenterY", 0, false);
+    assert(nRet == DEVICE_OK);
+    nRet = cam->CreateIntegerProperty("TrackRoiSize", 0, false);
+    assert(nRet == DEVICE_OK);
+
+    TRACKING_CAMERA_CLASS::CPropertyAction* pAct = new TRACKING_CAMERA_CLASS::CPropertyAction(cam, &TRACKING_CAMERA_CLASS::OnTrackingState);
+    nRet = cam->CreateProperty("trackingState", "Idle", MM::String, false, pAct);
+    assert(nRet == DEVICE_OK);
+    vector<string> trackingOnOffValues;
+    trackingOnOffValues.push_back("Idle");
+    trackingOnOffValues.push_back("Ready");
+    trackingOnOffValues.push_back("Tracking");
+    nRet = cam->SetAllowedValues("trackingState", trackingOnOffValues);
+    assert(nRet == DEVICE_OK);
+
+    nRet = cam->CreateStringProperty("trackingResult", "fail", false);//notification to tracking bridge
+    vector<string> trackingResultValues;
+    trackingResultValues.push_back("fail");
+    trackingResultValues.push_back("ok");
+    nRet = cam->SetAllowedValues("trackingState", trackingResultValues);
+    assert(nRet == DEVICE_OK);
+}
+
+/************tracking****************/
+int TRACKING_CAMERA_CLASS::OnTrackingState(MM::PropertyBase* pProp, MM::ActionType eAct)
+{
+    if (eAct == MM::AfterSet)
+    {
+        char buftmp[MM::MaxStrLength];
+        int ret = GetProperty("trackingState", buftmp);
+        string trackingState(buftmp);
+        if (trackingState == "Idle") { isTracking = false; }
+        if (trackingState == "Ready") { isTracking = false; }
+        if (trackingState == "Tracking") {
+            bool lastIsTracking = isTracking;
+            if (!isTracking)
+                isTracking = true;
+            else
+                isRedefineTracking = true;// turn on redefine. the flag of isRedefineTracking should be cleared soon after redefine
+        }
+    }
+    return DEVICE_OK;
+}
+//============================================================
 
 //#define DEBUG_METHOD_NAMES
 
@@ -414,6 +595,7 @@ int Universal::Initialize()
             if (!pl_pvcam_init())
                 return LogPvcamError(__LINE__, "Second PVCAM init failed");
         }
+        Tracking_Plugin_Adapter_Properties(this);
         PVCAM_initialized_ = true;
 
 #ifdef PVCAM_ADAPTER_CUSTOM_BUILD
@@ -4899,8 +5081,24 @@ int Universal::postProcessSingleFrame(unsigned char** pOutBuf, unsigned char* pI
             rgbImgBuf_->Width(), rgbImgBuf_->Height(), (unsigned)prmBitDepth_->Current());
         pixBuffer = rgbImgBuf_->GetPixelsRW();
     }
+    int rows = GetImageWidth();
+    int cols = GetImageHeight();
+    cv::Mat img( rows, cols, CV_16U, pixBuffer);
+    //cv::Mat thr_img(rows, cols, CV_16U);
+    //cv::threshold(img, thr_img, 0, 1000, cv::THRESH_TOZERO);
+    
+    vector<Mat> channels(3);
+    channels[0] = img / 256;
+    channels[1] = img / 256;
+    channels[2] = img / 256;
+    Mat rgb;
+    merge(channels, rgb);
+    rgb.convertTo(rgb, CV_8UC3);
+    if(Tracking_Update_Tracking_Area(this, rgb))
+        rectangle(img, trackBox, Scalar(65535), 2, 1);
 
-    *pOutBuf = pixBuffer;
+    //*pOutBuf = pixBuffer;
+    *pOutBuf = (unsigned char*)(img.data);
     return DEVICE_OK;
 }
 
