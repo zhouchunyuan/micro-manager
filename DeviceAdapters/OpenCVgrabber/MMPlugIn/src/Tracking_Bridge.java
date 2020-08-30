@@ -5,7 +5,8 @@
 
 //import org.micromanager.data.Image;
 import org.micromanager.internal.MMStudio;
-import org.micromanager.internal.dialogs.PixelSizeProvider;
+//import org.micromanager.internal.dialogs.PixelSizeProvider;
+import javax.vecmath.Vector2d;
 
 import ij.IJ;
 import ij.ImagePlus;
@@ -88,18 +89,7 @@ public class Tracking_Bridge implements PlugInFilter, MouseListener, MouseMotion
                         double cal = studio.core().getPixelSizeUm();
                         double pixErr = 2;
                         //double maxStepSize = trackRoiSize/10;
-                        
-
-                        try
-                        {
-                            Thread.sleep(1000);
-                        }
-                        catch(InterruptedException ex)
-                        {
-                            Thread.currentThread().interrupt();
-                        }
-                        
-                        
+                       
                         while(m.tracking && studio.live().getIsLiveModeOn() ){
                             //try{
                              //Thread.sleep(500);
@@ -108,8 +98,8 @@ public class Tracking_Bridge implements PlugInFilter, MouseListener, MouseMotion
                             double screen_dx = Double.parseDouble( m.getProperty( "detectedX"))-w/2;
                             double screen_dy = Double.parseDouble( m.getProperty( "detectedY"))-h/2;
                             
-                            double PID_Px = 0.8*Math.abs(screen_dx)/w;
-                            double PID_Py = 0.8*Math.abs(screen_dy)/h;
+                            double PID_Px = m.trackingForce*Math.abs(screen_dx)/w;
+                            double PID_Py = m.trackingForce*Math.abs(screen_dy)/h;
                             // scale down to maxStepSize
                             /*
                             if ( Math.abs(dx) > maxStepSize ){
@@ -127,21 +117,18 @@ public class Tracking_Bridge implements PlugInFilter, MouseListener, MouseMotion
                                         
                                         double dx = screen_dx*cal*PID_Px;
                                         double dy = screen_dy*cal*PID_Py;
-                                        
-                                        if(m.swap_xy){
-                                            double tmp = dy;
-                                            dy = dx;
-                                            dx = tmp;
-                                        }
-                                        if(m.flip_h)dx = -dx;
-                                        if(m.flip_v)dy = -dy;
-                                        
+
+                                        Vector2d dv = m.transform(dx, dy);
+                                       
                                         studio.core().waitForDevice( studio.core().getXYStageDevice() );
                                         double x0 = studio.core().getXPosition();
                                         double y0 = studio.core().getYPosition();
-                                        if(trackingResult.equals( "ok" ))
-                                            studio.core().setXYPosition(x0+dx, y0+dy);
-
+                                        if(trackingResult.equals( "ok" )){
+                                            studio.core().setXYPosition(x0+dv.x, y0+dv.y);
+                                            m.dx4draw = screen_dx/w;
+                                            m.dy4draw = screen_dy/h;
+                                            m.trackingStatusPanel.repaint();
+                                        }
                                         //IJ.log(" movex:"+(-dx*cal*PID_P) +" | movey:" + (dy*cal*PID_P));
                                     }
                                    
@@ -153,7 +140,7 @@ public class Tracking_Bridge implements PlugInFilter, MouseListener, MouseMotion
                         }
                         // set menu state to idle and uncheck box
                         m.set_idle();
-                        m.trkCheckBox.setSelected(false);
+                        m.trkButton.setSelected(false);
                    }
                 });
                 acqThread.start();
