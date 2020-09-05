@@ -214,7 +214,7 @@ bool Tracking_Plugin_Adapter_Properties(TRACKING_CAMERA_CLASS* cam) {
     vector<string> trackingResultValues;
     trackingResultValues.push_back("fail");
     trackingResultValues.push_back("ok");
-    nRet = cam->SetAllowedValues("trackingState", trackingResultValues);
+    nRet = cam->SetAllowedValues("trackingResult", trackingResultValues);
     assert(nRet == DEVICE_OK);
 }
 
