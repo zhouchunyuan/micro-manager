@@ -213,7 +213,7 @@ public class MenuBar implements ActionListener,ChangeListener{
                     MMStudio studio = MMStudio.getInstance();
                         try {
                             studio.core().setProperty(devName, propName, val);
-                            studio.refreshGUI();
+                            //studio.refreshGUI();
                         }catch(Exception ex) {
                             ex.printStackTrace();
                         }
@@ -223,7 +223,7 @@ public class MenuBar implements ActionListener,ChangeListener{
                     String str="";
                         try {
                             str = studio.core().getProperty(devName, propName);
-                            studio.refreshGUI();
+                            //studio.refreshGUI(); this will freeze property browser
                         }catch(Exception ex) {
                             ex.printStackTrace();
                         }

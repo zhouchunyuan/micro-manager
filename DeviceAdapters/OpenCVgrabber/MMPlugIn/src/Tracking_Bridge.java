@@ -91,15 +91,18 @@ public class Tracking_Bridge implements PlugInFilter, MouseListener, MouseMotion
                         //double maxStepSize = trackRoiSize/10;
                        
                         while(m.tracking && studio.live().getIsLiveModeOn() ){
+                            
                             //try{
                              //Thread.sleep(500);
+
                             String trackingResult =  m.getProperty( "trackingResult");//fail or ok
                             
                             double screen_dx = Double.parseDouble( m.getProperty( "detectedX"))-w/2;
                             double screen_dy = Double.parseDouble( m.getProperty( "detectedY"))-h/2;
-                            
+
                             double PID_Px = m.trackingForce*Math.abs(screen_dx)/w;
                             double PID_Py = m.trackingForce*Math.abs(screen_dy)/h;
+                           
                             // scale down to maxStepSize
                             /*
                             if ( Math.abs(dx) > maxStepSize ){
@@ -112,6 +115,7 @@ public class Tracking_Bridge implements PlugInFilter, MouseListener, MouseMotion
                             }
                             */
                             //IJ.log("screen:dx="+dx+", dy="+dy+" PID_P = "+PID_P);
+                            
                             try {
                                     if( Math.abs(screen_dx) >pixErr || Math.abs(screen_dy) >pixErr ){
                                         
@@ -131,12 +135,10 @@ public class Tracking_Bridge implements PlugInFilter, MouseListener, MouseMotion
                                         }
                                         //IJ.log(" movex:"+(-dx*cal*PID_P) +" | movey:" + (dy*cal*PID_P));
                                     }
-                                   
-                                    studio.refreshGUI();
+                                  //studio.refreshGUI();
                             } catch (Exception e) {
                                     e.printStackTrace();
                             }
-
                         }
                         // set menu state to idle and uncheck box
                         m.set_idle();
